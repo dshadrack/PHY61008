@@ -1,6 +1,6 @@
 program Sun_Earth_Jupiter
 !Start Program
-!Version 2
+!Version 3
 !Variable Declaration
 Implicit none
 !Define Variables
