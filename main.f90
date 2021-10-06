@@ -1,6 +1,6 @@
 program Sun_Earth_Jupiter
 !Start Program
-!Version 3
+!Version 2
 !Variable Declaration
 Implicit none
 !Define Variables
@@ -144,20 +144,18 @@ Do i = 0,n-1
                 s(i,j) = ((r(i,0)-r(j,0))**2 + (r(i,1) -r(j,1))**2 + (r(i,2) - r(j,2))**2)**0.5
                 !Running total GPE
                 P(i) = P(i) - G*M(i)*M(j)/s(i,j)
-                    Do k = 0,2
                     !Find vectors i -> j
-                    d(i,j,k) = r(j,k) - r(i,k)
+                d(i,j,:) = r(j,:) - r(i,:)
                     !Calculate forces in dimension k, add to force vector array
-                    F(i,k) = F(i,k) + (G*M(i)*M(j)/(s(i,j))**2)*d(i,j,k)/s(i,j)
-                    End Do
+                F(i,:) = F(i,:) + (G*M(i)*M(j)/(s(i,j))**2)*d(i,j,:)/s(i,j)
             End If
         End Do
 End Do
 P = P/2
 !Calculate Initial Acceleration
-Do i = 0,n-1
+do i = 0,2
     a_0(i,:) = F(i,:)/M(i)
-End Do
+end do
 
 !State initial conditions of the simulation
 Write(6,*) "Initial Conditions"
@@ -233,12 +231,10 @@ Do while (s(0,7) <= InitSep)
             !Find absolute distance between bodies i and j
             s(i,j) = ((r(i,0)-r(j,0))**2 + (r(i,1) -r(j,1))**2 + (r(i,2) - r(j,2))**2)**0.5
             !For each dimension xyz
-            Do k = 0,2
-                !Find vectors i -> j
-                d(i,j,k) = r(j,k) - r(i,k)
+            !Find vectors i -> j
+            d(i,j,:) = r(j,:) - r(i,:)
                 !Calculate forces in dimension k, add to force vector array
-                F(i,k) = F(i,k) + (G*M(i)*M(j)/(s(i,j))**2)*d(i,j,k)/s(i,j)
-            End Do
+            F(i,:) = F(i,:) + (G*M(i)*M(j)/(s(i,j))**2)*d(i,j,:)/s(i,j)
         End if
         End Do
     End Do
