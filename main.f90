@@ -147,15 +147,13 @@ Do i = 0,n-1
                     !Find vectors i -> j
                 d(i,j,:) = r(j,:) - r(i,:)
                     !Calculate forces in dimension k, add to force vector array
-                F(i,:) = F(i,:) + (G*M(i)*M(j)/(s(i,j))**2)*d(i,j,:)/s(i,j)
+                a_0(i,:) = a_0(i,:) + (G*M(j)/(s(i,j))**2)*d(i,j,:)/s(i,j)
             End If
         End Do
 End Do
 P = P/2
 !Calculate Initial Acceleration
-do i = 0,2
-    a_0(i,:) = F(i,:)/M(i)
-end do
+
 
 !State initial conditions of the simulation
 Write(6,*) "Initial Conditions"
@@ -217,6 +215,7 @@ Do while (s(0,7) <= InitSep)
     F = 0
     s = 0
     d = 0
+    a_1 = 0
     !Calculate dynamic timestep based on max acceleration
     step = (1/ (maxval(a_0**2))**0.25) * TimeFactor
     !Find new r pos after time-step
@@ -233,17 +232,14 @@ Do while (s(0,7) <= InitSep)
             !For each dimension xyz
             !Find vectors i -> j
             d(i,j,:) = r(j,:) - r(i,:)
-                !Calculate forces in dimension k, add to force vector array
-            F(i,:) = F(i,:) + (G*M(i)*M(j)/(s(i,j))**2)*d(i,j,:)/s(i,j)
+                !Calculate field strength in dimension k, add to acceleration vector array
+            a_1(i,:) = a_1(i,:) + (G*M(j)/(s(i,j))**2)*d(i,j,:)/s(i,j)
         End if
         End Do
     End Do
     !!$OMP END DO
     !!$OMP END PARALLEL
     !Find New Accelerations
-    Do i = 0,n-1
-        a_1(i,:) = F(i,:)/M(i)
-    End do
 
 
 
