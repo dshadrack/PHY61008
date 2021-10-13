@@ -268,11 +268,7 @@ Do while ((CurrentTime / year) < length)
     v = v + 0.5*(a(:,:,-1) + a(:,:,0))*step
 
     !Shift all acceleration datapoints one step backwards
-    do k = -6,-1
-        a(:,:,k) = a(:,:,k+1)
-    end do
-
-
+    a(:,:,-6:-1) = a(:,:,-5:0)
 
     !Write Every 250th step to log files
     If ((Mod(t,500) == 0) .and. (Logging == 1)) then
