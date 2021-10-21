@@ -88,7 +88,6 @@ Read *, length
 
 
 !Empty Arrays
-F = 0
 a = 0
 s = 0
 d = 0
@@ -168,15 +167,15 @@ Write(6,*) E0
 Write(6,*) ""
 
 !Small timestep while bootstrapping
-Step = 2
+Step = 5
 !Bootstrap into ABM using 2nd order taylor expansion
 Do k = 0,2
 
     !Find new r pos after time-step
     r(:,:,0) = r(:,:,0) + v(:,:,0)*step + 0.5*a(:,:,0)*step**2
 
-    a(:,:,-3:-1) = a(:,:,-2:0)
-    v(:,:,-3:-1) = a(:,:,-2:0)
+    a(:,:,-6:-1) = a(:,:,-5:0)
+    v(:,:,-6:-1) = v(:,:,-5:0)
     s = 0
     d = 0
     a(:,:,0) = 0
@@ -203,6 +202,8 @@ Do k = 0,2
     counter = counter + 1
 End Do
 
+!write(6,*) a(1,0,:)
+!write(6,*) v(1,0,:)
 
 
 
@@ -232,67 +233,61 @@ End IF
 !Begin Simulation
 
 Do while ((CurrentTime / year) < length)
-    If ((counter > 6) .and. (Step <500)) then
+    If ((counter > 6) .and. (Step <50000)) then
 
         a(:,:,-1) = a(:,:,-2)
         a(:,:,-2) = a(:,:,-4)
         a(:,:,-3) = a(:,:,-6)
         Step = Step * 2
+        counter = 0
     End If
     counter = counter + 1
-    F = 0
     s = 0
     d = 0
 
     !Predict r pos using ABM predictor
 
+    r(:,:,1) = r(:,:,0) + (Step/24.) * (-9.* v(:,:,-3) +37.* v(:,:,-2) -59. * v(:,:,-1) +55. * v(:,:,0))
 
 
-    r(:,:,1) = r(:,:,0) + (Step/24) * (-9.* v(:,:,-3) +37.* v(:,:,-2) -59. * v(:,:,-1) +55. * v(:,:,0))
-    r(:,:,0) = r(:,:,1)
 
-    a(:,:,0) = 0
+    a(:,:,1) = 0
+
+
     !For each body
-    !!$OMP PARALLEL
-    !!$OMP DO PRIVATE(i,j,k)
     Do i = 0,n-1
         !For each other body
         Do j = 0,n-1
         If (i /= j) then
             !Find absolute distance between bodies i and j
-            s(i,j) = ((r(i,0,0)-r(j,0,0))**2 + (r(i,1,0) -r(j,1,0))**2 + (r(i,2,0) - r(j,2,0))**2)**0.5
+            s(i,j) = ((r(i,0,1)-r(j,0,1))**2 + (r(i,1,1) -r(j,1,1))**2 + (r(i,2,1) - r(j,2,1))**2)**0.5
             !For each dimension xyz
             !Find vectors i -> j
-            d(i,j,:) = r(j,:,0) - r(i,:,0)
-                !Calculate field strength in dimension k, add to acceleration vector array
-            a(i,:,0) = a(i,:,0) + (G*M(j)/(s(i,j))**2)*d(i,j,:)/s(i,j)
+            d(i,j,:) = r(j,:,1) - r(i,:,1)
+            !Calculate field strength in dimension k, add to acceleration vector array
+            a(i,:,1) = a(i,:,1) + (G*M(j)/(s(i,j))**2)*d(i,j,:)/s(i,j)
         End if
         End Do
     End Do
-    !!$OMP END DO
-    !!$OMP END PARALLEL
     !Find New Accelerations
 
 
 
     !Find new velocities using ABM predictor
 
-    v(:,:,1) = v(:,:,0) + (Step/24) * (-9.* a(:,:,-3) +37.* a(:,:,-2) -59. * a(:,:,-1) +55. * a(:,:,0))
+    v(:,:,1) = v(:,:,0) + (Step/24.) * (-9.* a(:,:,-3) +37.* a(:,:,-2) -59. * a(:,:,-1) +55. * a(:,:,0))
 
 
 
 
 
+    !Shift all datapoints one step backwards
 
-
-
-
-
-    !Shift all acceleration datapoints one step backwards
-    a(:,:,-6:0) = a(:,:,-5:1)
     v(:,:,-6:0) = v(:,:,-5:1)
+    a(:,:,-6:0) = a(:,:,-5:1)
+    r(:,:,0) = r(:,:,1)
 
-    !Write Every 250th step to log files
+    !Write Every 500th step to log files
     If ((Mod(t,500) == 0) .and. (Logging == 1)) then
         Write(2,*) CurrentTime,',', d(0,0,0),',',d(0,0,1),',',d(0,0,2),',', s(0,0)
         Write(3,*) CurrentTime,',', d(0,1,0),',',d(0,1,1),',',d(0,1,2),',', s(0,1)
