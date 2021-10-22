@@ -5,10 +5,10 @@ program NBody
 !Variable Declaration
 Implicit none
 !Define Variables
-DoublePrecision :: r(0:6,0:2,0:1),v(0:6,0:2,-6:1),F(0:6,0:2),a(0:6,0:2,-6:1)
+DoublePrecision :: r(0:6,0:2,0:2),v(0:6,0:2,-6:2),F(0:6,0:2),a(0:6,0:2,-6:1), ai(0:6,0:2,0:1), vi(0:6,0:2,0:1)
 doubleprecision :: G, M(0:6),s(0:6,0:6), d(0:6,0:6,0:2), AU, E0,E1,Vabs_Squared(0:6),COM(0:2),Mtot,Cov(0:2)
-doubleprecision :: P(0:6), Theta(1:6), pi, Msol, TimeFactor, CurrentTime,Step, year
-Integer(8) :: i,j,k,t,done, tmax,length,x, n, Logging, counter
+doubleprecision :: P(0:6), Theta(1:6), pi, Msol, TimeFactor, CurrentTime,Step, year, Small, relerr
+Integer(8) :: i,j,k,t,done, tmax,length,x, n, Logging, counter, frac
 !Assign constant values
 n = 7
 t = 0
@@ -17,6 +17,9 @@ AU = 1.496e11
 G = 1*6.67e-11
 pi = 4*atan(1.)
 counter = 0
+Small = 1e-5
+relerr = 5e-9
+frac = 0
 !Randomise Starting angles in xy
 Call init_random_seed()
 Call random_number(Theta)
@@ -167,7 +170,7 @@ Write(6,*) E0
 Write(6,*) ""
 
 !Small timestep while bootstrapping
-Step = 5
+Step = 1
 !Bootstrap into ABM using 2nd order taylor expansion
 Do k = 0,2
 
@@ -218,7 +221,7 @@ Write(6,*) ""
 Write(6,*) "Log Data to Files? (Type 1 for yes, 0 for no)"
 read *, Logging
 Write(6,*) ""
-Write(6,*) Step
+!Write(6,*) Step
 
 !Open Log Files
 If (Logging == 1) then
@@ -233,15 +236,7 @@ End IF
 !Begin Simulation
 
 Do while ((CurrentTime / year) < length)
-    If ((counter > 6) .and. (Step <50000)) then
 
-        a(:,:,-1) = a(:,:,-2)
-        a(:,:,-2) = a(:,:,-4)
-        a(:,:,-3) = a(:,:,-6)
-        Step = Step * 2
-        counter = 0
-    End If
-    counter = counter + 1
     s = 0
     d = 0
 
@@ -280,13 +275,57 @@ Do while ((CurrentTime / year) < length)
 
 
 
+    !Adams-Moulton Corrector
+    r(:,:,2) = r(:,:,0) + (Step/24) * ( v(:,:,-2) - 5.* v(:,:,-1) + 19.*v(:,:,0) + 9.* v(:,:,1) )
+    v(:,:,2) = v(:,:,0) + (Step/24) * ( a(:,:,-2) - 5.* a(:,:,-1) + 19.*a(:,:,0) + 9.* a(:,:,1) )
+
 
     !Shift all datapoints one step backwards
 
     v(:,:,-6:0) = v(:,:,-5:1)
     a(:,:,-6:0) = a(:,:,-5:1)
-    r(:,:,0) = r(:,:,1)
+    r(:,:,0) = r(:,:,2)
+    v(:,:,0) = v(:,:,2)
 
+    !Write(6,*)  Step
+    !Write(6,*) ""
+    If (maxval(abs(r(:,:,2) - r(:,:,1))/ (abs(r(:,:,2)) + Small)) <relerr * 0.01) then
+        If ((counter > 6)) then
+
+            a(:,:,-1) = a(:,:,-2)
+            a(:,:,-2) = a(:,:,-4)
+            a(:,:,-3) = a(:,:,-6)
+
+            v(:,:,-1) = v(:,:,-2)
+            v(:,:,-2) = v(:,:,-4)
+            v(:,:,-3) = v(:,:,-6)
+            Step = Step * 2
+            counter = 0
+        End If
+    End If
+
+    !If (maxval(abs(r(:,:,2) - r(:,:,1))/ (abs(r(:,:,2)) + Small)) > relerr) then
+        !If (counter > 4) then
+            !ai(:,:,0) = (1/128) * (-5.* a(:,:,-4) + 28.* a(:,:,-3) - 70.* a(:,:,-2) + 140.* a(:,:,-1) + 35.* a(:,:,0))
+            !ai(:,:,1) = (1/128) * (3.* a(:,:,-4) - 20.* a(:,:,-3) + 90.* a(:,:,-2) + 60.* a(:,:,-1) - 5.* a(:,:,0))
+
+            !vi(:,:,0) = (1/128) * (-5.* v(:,:,-4) + 28.* v(:,:,-3) - 70.* v(:,:,-2) + 140.* v(:,:,-1) + 35.* v(:,:,0))
+            !vi(:,:,1) = (1/128) * (3.* v(:,:,-4) - 20.* v(:,:,-3) + 90.* v(:,:,-2) + 60.* v(:,:,-1) - 5.* v(:,:,0))
+
+            !a(:,:,-2) = a(:,:,-1)
+            !a(:,:,-1) = ai(:,:,0)
+            !a(:,:,-3) = ai(:,:,1)
+
+            !v(:,:,-2) = v(:,:,-1)
+            !v(:,:,-1) = vi(:,:,0)
+            !v(:,:,-3) = vi(:,:,1)
+
+            !Step = Step * 0.5
+            !counter = 0
+        !end if
+    !End If
+
+    counter = counter + 1
     !Write Every 500th step to log files
     If ((Mod(t,500) == 0) .and. (Logging == 1)) then
         Write(2,*) CurrentTime,',', d(0,0,0),',',d(0,0,1),',',d(0,0,2),',', s(0,0)
@@ -296,10 +335,39 @@ Do while ((CurrentTime / year) < length)
         Write(8,*) CurrentTime,',', d(0,4,0),',',d(0,4,1),',',d(0,4,2),',', s(0,4)
         Write(9,*) CurrentTime,',', d(0,5,0),',',d(0,5,1),',',d(0,5,2),',', s(0,5)
         Write(10,*) CurrentTime,',', d(0,6,0),',',d(0,6,1),',',d(0,6,2),',', s(0,6)
+
     End If
 !Keep track of how much time has elapsed
 CurrentTime = CurrentTime + Step
 t = t + 1
+
+If (CurrentTime / (length * year) > 0.2) Then
+    If (CurrentTime / (length * year) > 0.4) Then
+        If (CurrentTime / (length * year) > 0.6) then
+            If (CurrentTime / (length * year) > 0.8) then
+                If (frac == 6) then
+                    Write(6,*) "80% Done"
+                    frac = 8
+                End If
+            else
+            If (frac == 4) then
+                    Write(6,*) "60% Done"
+                    frac = 6
+                End If
+            End If
+        else
+            If (frac == 2) then
+                    Write(6,*) "40% Done"
+                    frac = 4
+                End If
+        End If
+    else
+        If (frac == 0) then
+            Write(6,*) "20% Done"
+            frac = 2
+        End If
+    End If
+End If
 End Do
 
 !Close Log files
