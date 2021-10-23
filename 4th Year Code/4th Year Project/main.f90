@@ -5,10 +5,10 @@ program NBody
 !Variable Declaration
 Implicit none
 !Define Variables
-DoublePrecision :: r(0:6,0:2,0:2),v(0:6,0:2,-6:2),F(0:6,0:2),a(0:6,0:2,-6:1), ai(0:6,0:2,0:1), vi(0:6,0:2,0:1)
+DoublePrecision :: r(0:6,0:2,0:2),v(0:6,0:2,-6:2),a(0:6,0:2,-6:1), ai(0:6,0:2,0:1), vi(0:6,0:2,0:1)
 doubleprecision :: G, M(0:6),s(0:6,0:6), d(0:6,0:6,0:2), AU, E0,E1,Vabs_Squared(0:6),COM(0:2),Mtot,Cov(0:2)
 doubleprecision :: P(0:6), Theta(1:6), pi, Msol, TimeFactor, CurrentTime,Step, year, Small, relerr
-Integer(8) :: i,j,k,t,done, tmax,length,x, n, Logging, counter, frac
+Integer(8) :: i,j,k,t,done,length, n, Logging, counter, frac
 !Assign constant values
 n = 7
 t = 0
@@ -61,6 +61,7 @@ v(6,0,0) = 5430 * -1. *cos(Theta(6))
 v(6,1,0) = 5430 * -1. *sin(Theta(6))
 v(6,2,0) = 0
 
+!Starting positions
 r = 0
 r(0,0,0) = 0
 r(0,1,0) = 0
@@ -84,7 +85,7 @@ r(6,0,0) = 30.07 * AU * sin(Theta(6)) * -1.
 r(6,1,0) = 30.07 * AU * cos(Theta(6))
 r(6,2,0) = 0
 
-
+!Ask for length of time sim should run for
 Write(6,*) ("Enter Sim Duration (Years)")
 Read *, length
 
@@ -177,13 +178,16 @@ Do k = 0,2
     !Find new r pos after time-step
     r(:,:,0) = r(:,:,0) + v(:,:,0)*step + 0.5*a(:,:,0)*step**2
 
+    !Shift all datapoints backwards in time one step
     a(:,:,-6:-1) = a(:,:,-5:0)
     v(:,:,-6:-1) = v(:,:,-5:0)
+
+    !Reset arrays for current loop
     s = 0
     d = 0
     a(:,:,0) = 0
 
-
+    !Accleration calculation loop
     Do i = 0,n-1
         !For each other body
         Do j = 0,n-1
@@ -199,20 +203,14 @@ Do k = 0,2
         End Do
     End Do
 
+    !Update velocity using newfound acceleration
     v(:,:,0) = v(:,:,0) + 0.5*(a(:,:,-1) + a(:,:,0))*step
+
+    !Keep track of time elapsed
     t = t+1
     CurrentTime = CurrentTime + Step
     counter = counter + 1
 End Do
-
-!write(6,*) a(1,0,:)
-!write(6,*) v(1,0,:)
-
-
-
-
-
-
 
 
 !Ask for user defined parameters
@@ -221,7 +219,6 @@ Write(6,*) ""
 Write(6,*) "Log Data to Files? (Type 1 for yes, 0 for no)"
 read *, Logging
 Write(6,*) ""
-!Write(6,*) Step
 
 !Open Log Files
 If (Logging == 1) then
@@ -233,6 +230,8 @@ If (Logging == 1) then
     open(9,file = 'Uranus Motion.csv')
     open(10,file = 'Neptune Motion.csv')
 End IF
+
+
 !Begin Simulation
 
 Do while ((CurrentTime / year) < length)
@@ -241,14 +240,12 @@ Do while ((CurrentTime / year) < length)
     d = 0
 
     !Predict r pos using ABM predictor
-
     r(:,:,1) = r(:,:,0) + (Step/24.) * (-9.* v(:,:,-3) +37.* v(:,:,-2) -59. * v(:,:,-1) +55. * v(:,:,0))
 
-
-
+    !Reset predicted acceleration values for current calculation
     a(:,:,1) = 0
 
-
+    !Acceleration Loop
     !For each body
     Do i = 0,n-1
         !For each other body
@@ -264,34 +261,26 @@ Do while ((CurrentTime / year) < length)
         End if
         End Do
     End Do
-    !Find New Accelerations
-
-
 
     !Find new velocities using ABM predictor
-
     v(:,:,1) = v(:,:,0) + (Step/24.) * (-9.* a(:,:,-3) +37.* a(:,:,-2) -59. * a(:,:,-1) +55. * a(:,:,0))
 
-
-
-
-    !Adams-Moulton Corrector
+    !Correct using predicted values using ABM corrector
     r(:,:,2) = r(:,:,0) + (Step/24) * ( v(:,:,-2) - 5.* v(:,:,-1) + 19.*v(:,:,0) + 9.* v(:,:,1) )
     v(:,:,2) = v(:,:,0) + (Step/24) * ( a(:,:,-2) - 5.* a(:,:,-1) + 19.*a(:,:,0) + 9.* a(:,:,1) )
 
-
     !Shift all datapoints one step backwards
-
     v(:,:,-6:0) = v(:,:,-5:1)
     a(:,:,-6:0) = a(:,:,-5:1)
     r(:,:,0) = r(:,:,2)
     v(:,:,0) = v(:,:,2)
 
-    !Write(6,*)  Step
-    !Write(6,*) ""
+    !Check if predictor and corrector agree to overly precise level
     If (maxval(abs(r(:,:,2) - r(:,:,1))/ (abs(r(:,:,2)) + Small)) <relerr * 0.01) then
+        !Ensure there are enough previous points in memory
         If ((counter > 6)) then
 
+            !Omit every second historic point
             a(:,:,-1) = a(:,:,-2)
             a(:,:,-2) = a(:,:,-4)
             a(:,:,-3) = a(:,:,-6)
@@ -299,6 +288,8 @@ Do while ((CurrentTime / year) < length)
             v(:,:,-1) = v(:,:,-2)
             v(:,:,-2) = v(:,:,-4)
             v(:,:,-3) = v(:,:,-6)
+
+            !Double the timestep and reset the counter
             Step = Step * 2
             counter = 0
         End If
@@ -326,6 +317,7 @@ Do while ((CurrentTime / year) < length)
     !End If
 
     counter = counter + 1
+
     !Write Every 500th step to log files
     If ((Mod(t,500) == 0) .and. (Logging == 1)) then
         Write(2,*) CurrentTime,',', d(0,0,0),',',d(0,0,1),',',d(0,0,2),',', s(0,0)
@@ -337,10 +329,13 @@ Do while ((CurrentTime / year) < length)
         Write(10,*) CurrentTime,',', d(0,6,0),',',d(0,6,1),',',d(0,6,2),',', s(0,6)
 
     End If
+
 !Keep track of how much time has elapsed
 CurrentTime = CurrentTime + Step
 t = t + 1
 
+!Mechanism for printing out a progress update in 20% increments
+!Can probably be done in a better way
 If (CurrentTime / (length * year) > 0.2) Then
     If (CurrentTime / (length * year) > 0.4) Then
         If (CurrentTime / (length * year) > 0.6) then
@@ -359,7 +354,7 @@ If (CurrentTime / (length * year) > 0.2) Then
             If (frac == 2) then
                     Write(6,*) "40% Done"
                     frac = 4
-                End If
+            End If
         End If
     else
         If (frac == 0) then
