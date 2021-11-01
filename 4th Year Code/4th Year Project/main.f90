@@ -7,8 +7,8 @@ Implicit none
 !Define Variables
 DoublePrecision :: r(0:6,0:2,0:2),v(0:6,0:2,-6:2),a(0:6,0:2,-6:1), ai(0:6,0:2,0:1), vi(0:6,0:2,0:1)
 doubleprecision :: G, M(0:6),s(0:6,0:6), d(0:6,0:6,0:2), AU, E0,E1,Vabs_Squared(0:6),COM(0:2),Mtot,Cov(0:2)
-doubleprecision :: P(0:6), Theta(1:6), pi, Msol, TimeFactor, CurrentTime,Step, year, Small, relerr
-Integer(8) :: i,j,k,t,done,length, n, Logging, counter, frac
+doubleprecision :: P(0:6), Theta(1:6), pi, Msol, TimeFactor, CurrentTime,Step, year, Small, relerr,length
+Integer(8) :: i,j,k,t,done, n, Logging, counter, frac
 !Assign constant values
 n = 7
 t = 0
@@ -204,7 +204,7 @@ Do k = 0,2
     End Do
 
     !Update velocity using newfound acceleration
-    v(:,:,0) = v(:,:,0) + 0.5*(a(:,:,-1) + a(:,:,0))*step
+    v(:,:,0) = v(:,:,0) + 0.5*(a(:,:,-1) + a(:,:,0))*Step
 
     !Keep track of time elapsed
     t = t+1
@@ -235,13 +235,12 @@ End IF
 !Begin Simulation
 
 Do while ((CurrentTime / year) < length)
-
     s = 0
     d = 0
 
     !Predict r pos using ABM predictor
     r(:,:,1) = r(:,:,0) + (Step/24.) * (-9.* v(:,:,-3) +37.* v(:,:,-2) -59. * v(:,:,-1) +55. * v(:,:,0))
-
+    v(:,:,1) = v(:,:,0) + (Step/24.) * (-9.* a(:,:,-3) +37.* a(:,:,-2) -59. * a(:,:,-1) +55. * a(:,:,0))
     !Reset predicted acceleration values for current calculation
     a(:,:,1) = 0
 
@@ -262,12 +261,9 @@ Do while ((CurrentTime / year) < length)
         End Do
     End Do
 
-    !Find new velocities using ABM predictor
-    v(:,:,1) = v(:,:,0) + (Step/24.) * (-9.* a(:,:,-3) +37.* a(:,:,-2) -59. * a(:,:,-1) +55. * a(:,:,0))
-
     !Correct using predicted values using ABM corrector
-    r(:,:,2) = r(:,:,0) + (Step/24) * ( v(:,:,-2) - 5.* v(:,:,-1) + 19.*v(:,:,0) + 9.* v(:,:,1) )
-    v(:,:,2) = v(:,:,0) + (Step/24) * ( a(:,:,-2) - 5.* a(:,:,-1) + 19.*a(:,:,0) + 9.* a(:,:,1) )
+    r(:,:,2) = r(:,:,0) + (Step/24.) * ( v(:,:,-2) - 5.* v(:,:,-1) + 19.*v(:,:,0) + 9.* v(:,:,1) )
+    v(:,:,2) = v(:,:,0) + (Step/24.) * ( a(:,:,-2) - 5.* a(:,:,-1) + 19.*a(:,:,0) + 9.* a(:,:,1) )
 
     !Shift all datapoints one step backwards
     v(:,:,-6:0) = v(:,:,-5:1)
@@ -276,9 +272,9 @@ Do while ((CurrentTime / year) < length)
     v(:,:,0) = v(:,:,2)
 
     !Check if predictor and corrector agree to overly precise level
-    If (maxval(abs(r(:,:,2) - r(:,:,1))/ (abs(r(:,:,2)) + Small)) <relerr * 0.01) then
+    If ((maxval(abs(r(:,:,2) - r(:,:,1))/ (abs(r(:,:,2)) + Small)) <relerr * 0.001)) then
         !Ensure there are enough previous points in memory
-        If ((counter > 6)) then
+        If ((counter >= 6)) then
 
             !Omit every second historic point
             a(:,:,-1) = a(:,:,-2)
@@ -292,41 +288,45 @@ Do while ((CurrentTime / year) < length)
             !Double the timestep and reset the counter
             Step = Step * 2
             counter = 0
+            !write(6,*) "Growing dt to ", Step, t, (maxval(abs(r(:,:,2) - r(:,:,1))/ (abs(r(:,:,2)) + Small)) )
+        End If
+    else
+
+       If (maxval(abs(r(:,:,2) - r(:,:,1))/ (abs(r(:,:,2)) + Small)) > relerr) then
+            If (counter >= 3) then
+                ai(:,:,0) = (1./128.) * (-5.* a(:,:,-4) + 28.* a(:,:,-3) - 70.* a(:,:,-2) + 140.* a(:,:,-1) + 35.* a(:,:,0))
+                ai(:,:,1) = (1./128.) * (3.* a(:,:,-4) - 20.* a(:,:,-3) + 90.* a(:,:,-2) + 60.* a(:,:,-1) - 5.* a(:,:,0))
+
+                vi(:,:,0) = (1./128.) * (-5.* v(:,:,-4) + 28.* v(:,:,-3) - 70.* v(:,:,-2) + 140.* v(:,:,-1) + 35.* v(:,:,0))
+                vi(:,:,1) = (1./128.) * (3.* v(:,:,-4) - 20.* v(:,:,-3) + 90.* v(:,:,-2) + 60.* v(:,:,-1) - 5.* v(:,:,0))
+
+                a(:,:,-2) = a(:,:,-1)
+                a(:,:,-1) = ai(:,:,0)
+                a(:,:,-3) = ai(:,:,1)
+
+                v(:,:,-2) = v(:,:,-1)
+                v(:,:,-1) = vi(:,:,0)
+                v(:,:,-3) = vi(:,:,1)
+
+
+                Step = Step * 0.5
+                counter = 0
+                !write(6,*) "Shrinking dt to", Step,t, (maxval(abs(r(:,:,2) - r(:,:,1))/ (abs(r(:,:,2)) + Small)))
+            end if
         End If
     End If
-
-    !If (maxval(abs(r(:,:,2) - r(:,:,1))/ (abs(r(:,:,2)) + Small)) > relerr) then
-        !If (counter > 4) then
-            !ai(:,:,0) = (1/128) * (-5.* a(:,:,-4) + 28.* a(:,:,-3) - 70.* a(:,:,-2) + 140.* a(:,:,-1) + 35.* a(:,:,0))
-            !ai(:,:,1) = (1/128) * (3.* a(:,:,-4) - 20.* a(:,:,-3) + 90.* a(:,:,-2) + 60.* a(:,:,-1) - 5.* a(:,:,0))
-
-            !vi(:,:,0) = (1/128) * (-5.* v(:,:,-4) + 28.* v(:,:,-3) - 70.* v(:,:,-2) + 140.* v(:,:,-1) + 35.* v(:,:,0))
-            !vi(:,:,1) = (1/128) * (3.* v(:,:,-4) - 20.* v(:,:,-3) + 90.* v(:,:,-2) + 60.* v(:,:,-1) - 5.* v(:,:,0))
-
-            !a(:,:,-2) = a(:,:,-1)
-            !a(:,:,-1) = ai(:,:,0)
-            !a(:,:,-3) = ai(:,:,1)
-
-            !v(:,:,-2) = v(:,:,-1)
-            !v(:,:,-1) = vi(:,:,0)
-            !v(:,:,-3) = vi(:,:,1)
-
-            !Step = Step * 0.5
-            !counter = 0
-        !end if
-    !End If
 
     counter = counter + 1
 
     !Write Every 500th step to log files
     If ((Mod(t,500) == 0) .and. (Logging == 1)) then
-        Write(2,*) CurrentTime,',', d(0,0,0),',',d(0,0,1),',',d(0,0,2),',', s(0,0)
-        Write(3,*) CurrentTime,',', d(0,1,0),',',d(0,1,1),',',d(0,1,2),',', s(0,1)
-        Write(4,*) CurrentTime,',', d(0,2,0),',',d(0,2,1),',',d(0,2,2),',', s(0,2)
-        Write(7,*) CurrentTime,',', d(0,3,0),',',d(0,3,1),',',d(0,3,2),',', s(0,3)
-        Write(8,*) CurrentTime,',', d(0,4,0),',',d(0,4,1),',',d(0,4,2),',', s(0,4)
-        Write(9,*) CurrentTime,',', d(0,5,0),',',d(0,5,1),',',d(0,5,2),',', s(0,5)
-        Write(10,*) CurrentTime,',', d(0,6,0),',',d(0,6,1),',',d(0,6,2),',', s(0,6)
+        Write(2,*) CurrentTime,',', d(1,0,0),',',d(1,0,1),',',d(1,0,2),',', s(0,0)
+        Write(3,*) CurrentTime,',', d(1,1,0),',',d(1,1,1),',',d(1,1,2),',', s(0,1)
+        Write(4,*) CurrentTime,',', d(1,2,0),',',d(1,2,1),',',d(1,2,2),',', s(0,2)
+        Write(7,*) CurrentTime,',', d(1,3,0),',',d(1,3,1),',',d(1,3,2),',', s(0,3)
+        Write(8,*) CurrentTime,',', d(1,4,0),',',d(1,4,1),',',d(1,4,2),',', s(0,4)
+        Write(9,*) CurrentTime,',', d(1,5,0),',',d(1,5,1),',',d(1,5,2),',', s(0,5)
+        Write(10,*) CurrentTime,',', d(1,6,0),',',d(1,6,1),',',d(1,6,2),',', s(0,6)
 
     End If
 
@@ -364,7 +364,7 @@ If (CurrentTime / (length * year) > 0.2) Then
     End If
 End If
 End Do
-
+Write(6,*) "100% Done!"
 !Close Log files
 If (Logging == 1) then
     close(2)
