@@ -5,7 +5,7 @@ program NBody
 !Variable Declaration
 Implicit none
 !Define Variables
-doubleprecision :: r(0:6,0:2,0:2),v(0:6,0:2,-6:2),a(0:6,0:2,-6:2), ai(0:6,0:2,0:1), vi(0:6,0:2,0:1)
+doubleprecision :: r(0:6,0:2,0:2),v(0:6,0:2,-6:2),a(0:6,0:2,-6:2), ai(0:6,0:2,0:1), vi(0:6,0:2,0:1),pcu, munit,runit,tunit,vunit
 doubleprecision :: G, M(0:6),s(0:6,0:6), d(0:6,0:6,0:2), AU, E0,E1,Vabs_Squared(0:6),COM(0:2),Mtot,Cov(0:2), Aerr, Verr
 doubleprecision :: P(0:6), Theta(1:6), pi, Msol, TimeFactor, CurrentTime,Step, year, Small, relerr,length,PCerror,start,finish
 Integer(8) :: i,j,k,t,done, n, Logging, counter, frac,systime
@@ -15,12 +15,21 @@ n = 7
 t = 0
 year = 3600.*24.*365.
 AU = 1.496e11
-G = 1*6.67e-11
+G = 1*6.67408e-11
 pi = 4.*atan(1.)
 counter = 0
 Small = 1.0e-10
-relerr = 5.0e-10
+relerr = 5.0e-12
 frac = 0
+
+!pcu=3.086d18
+!munit = 1
+!runit = 1
+!tunit=SQRT((runit*pcu**3)/(G*munit*Msol))/year
+!vunit=runit*pcu/(tunit*year*1.d5)
+!write(6,*) 'tunit/yrs', tunit
+!write(6,*) 'vunit/km/s', vunit
+
 !Randomise Starting angles in xy
 Call init_random_seed()
 Call random_number(Theta)
@@ -158,7 +167,6 @@ Write(6,*) E0
 Step = 1
 !Bootstrap into ABM using 2nd order taylor expansion
 Do k = 0,3
-    Write(6,*) a(1,0,:)
     !Find new r pos after time-step
     r(:,:,1) = r(:,:,0) + v(:,:,0)*step + 0.5*a(:,:,0)*step**2
 
@@ -196,7 +204,6 @@ Do k = 0,3
 
 End Do
 
-Write(6,*) a(1,0,:)
 !Ask for user defined parameters
 
 Write(6,*) ""
@@ -329,7 +336,7 @@ Do while ((CurrentTime / year) < length)
             end if
         End If
     End If
-
+!
     counter = counter + 1
 
     !Write Every 2000th step to log files
@@ -476,9 +483,9 @@ Write(6,*) Step
 Write(6,*) t
 !Stops program from closing automatically
 Write(6,*) ""
-Write(6,*) "Time elapsed ~", (Time() - systime), "Seconds"
+Write(6,*) "Clock Time (s) ~", (Time() - systime)
 call cpu_time(finish)
-Write(6,*) "CPU time", finish - start
+Write(6,*) "CPU time (s)", finish - start
 Write(6,*) ""
 End Do
 read *, done
