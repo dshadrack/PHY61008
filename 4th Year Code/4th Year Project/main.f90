@@ -13,7 +13,7 @@ Integer(8) :: i,j,k,t,done, n, Logging, counter, frac,systime
 Do
 n = 7
 t = 0
-year = 3600.*24.*365.
+year = 3600.*24.*365.25
 AU = 1.496e11
 G = 1*6.67408e-11
 pi = 4.*atan(1.)
@@ -21,10 +21,10 @@ counter = 0
 Small = 1.0e-10
 relerr = 5.0e-12
 frac = 0
-
+!
 !pcu=3.086d18
-!munit = 1
-!runit = 1
+!munit = 1.99e33
+!runit = AU
 !tunit=SQRT((runit*pcu**3)/(G*munit*Msol))/year
 !vunit=runit*pcu/(tunit*year*1.d5)
 !write(6,*) 'tunit/yrs', tunit
@@ -116,7 +116,7 @@ Cov = 0.
 
 
 !Calculate centre of mass / centre of velocity information
-Do i = 0,n-2
+Do i = 0,n-1
         Do k = 0,2
                 COM(k) = COM(k) + r(i,k,0)*M(i)
                 Cov(k) = Cov(k) + v(i,k,0)*M(i)
